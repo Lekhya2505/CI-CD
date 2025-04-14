@@ -22,7 +22,7 @@ jobs:
         run: npm install
 
       - name: Run tests
-        run: npm test || echo "⚠️ No tests found or test step skipped"
+        run: npm test
 
   docker_build_and_push:
     needs: build_and_test
@@ -43,7 +43,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/ci-cd:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/your-app:latest
 
   deploy_to_k8s:
     needs: docker_build_and_push
@@ -63,10 +63,8 @@ jobs:
           echo "${{ secrets.KUBE_CONFIG }}" > kubeconfig.yaml
           export KUBECONFIG=$PWD/kubeconfig.yaml
 
-      - name: Debug workspace
-        run: ls -R
-
       - name: Deploy to Kubernetes
         run: |
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
+
