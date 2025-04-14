@@ -8,7 +8,6 @@ on:
 jobs:
   build_and_test:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -27,7 +26,6 @@ jobs:
   docker_build_and_push:
     needs: build_and_test
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -48,36 +46,21 @@ jobs:
   deploy_to_k8s:
     needs: docker_build_and_push
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: Set up Minikube
-        uses: medyagh/setup-minikube@v0.4.0
-        with:
-          driver: docker  # or "none" if using a different driver
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
         with:
           version: 'latest'
 
-      - name: Verify Minikube status
+      - name: Load kubeconfig from secret
         run: |
-          minikube status
-          kubectl version --client
-          kubectl get nodes
-
-      - name: Set kubectl context
-        run: |
-          kubectl config use-context minikube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig.yaml
+          export KUBECONFIG=$PWD/kubeconfig.yaml
 
       - name: Deploy to Kubernetes
         run: |
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
-
-      - name: Run tests (example)
-        run: |
-          curl $(minikube service nginx --url)
