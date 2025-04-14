@@ -2,14 +2,10 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
 
 jobs:
-  # CI: Build and Test Job
   build_and_test:
     runs-on: ubuntu-latest
 
@@ -17,55 +13,57 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Set up Python, Node, or another environment
-      - name: Set up Node.js (if using Node)
+      - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '16'  # Use the appropriate version for your project
+          node-version: '18'
 
-      # Install dependencies
       - name: Install dependencies
-        run: |
-          npm install
+        run: npm install
 
-      # Run tests (Adjust for your test framework)
-      - name: Run Tests
-        run: |
-          npm test
+      - name: Run tests
+        run: npm test
 
-      # Lint Code (Optional: for code quality)
-      - name: Run Linting
-        run: |
-          npm run lint
-
-  # CD: Deploy to Kubernetes (if applicable) or another environment
-  deploy:
-    needs: build_and_test  # This job depends on the build_and_test job
+  docker_build_and_push:
+    needs: build_and_test
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Set up kubectl to deploy to a Kubernetes cluster (use your cloud provider setup)
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v2
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
         with:
-          kubectl-version: 'latest'
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Configure kubectl (authenticate with your cluster)
-      - name: Set up kubeconfig
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/your-app:latest
+
+  deploy_to_k8s:
+    needs: docker_build_and_push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Load kubeconfig
         run: |
           echo "${{ secrets.KUBE_CONFIG }}" > kubeconfig.yaml
-          export KUBECONFIG=$(pwd)/kubeconfig.yaml
+          export KUBECONFIG=$PWD/kubeconfig.yaml
 
-      # Deploy to Kubernetes (if using Kubernetes)
       - name: Deploy to Kubernetes
         run: |
-          kubectl apply -f ./k8s/deployment.yaml
-          kubectl apply -f ./k8s/service.yaml
-
-      # (Optional) Deploy to a cloud provider like AWS, GCP, or Azure
-      # - name: Deploy to AWS (example)
-      #   run: |
-      #     aws ecs update-service --cluster my-cluster --service my-service --force-new-deployment
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
